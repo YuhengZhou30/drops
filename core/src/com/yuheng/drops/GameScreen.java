@@ -18,16 +18,21 @@ import com.badlogic.gdx.utils.TimeUtils;
 
 public class GameScreen implements Screen {
     final Drop game;
+    float fpsTime = 0;
+    int fpsCounter = 0;
+    int fps = 0;
 
+
+    Texture backgroundTexture;
     Texture dropImage;
     Texture bucketImage;
-    Sound dropSound;
+    Sound dropSound,Gameover;
     Music rainMusic;
     OrthographicCamera camera;
     Rectangle bucket;
     Array<Rectangle> raindrops;
     long lastDropTime;
-    int dropsGathered;
+    static int dropsGathered=0;
 
     public GameScreen(final Drop game) {
         this.game = game;
@@ -35,10 +40,12 @@ public class GameScreen implements Screen {
         // load the images for the droplet and the bucket, 64x64 pixels each
         dropImage = new Texture(Gdx.files.internal("droplet.png"));
         bucketImage = new Texture(Gdx.files.internal("bucket.png"));
+        backgroundTexture = new Texture(Gdx.files.internal("backgroud.jpg"));
 
         // load the drop sound effect and the rain background "music"
         dropSound = Gdx.audio.newSound(Gdx.files.internal("drop.wav"));
         rainMusic = Gdx.audio.newMusic(Gdx.files.internal("rain.mp3"));
+        Gameover = Gdx.audio.newSound(Gdx.files.internal("gameover.wav"));
         rainMusic.setLooping(true);
 
         // create the camera and the SpriteBatch
@@ -71,6 +78,19 @@ public class GameScreen implements Screen {
 
     @Override
     public void render(float delta) {
+        fpsTime += delta;
+        fpsCounter++;
+
+        // Comprobar si ha pasado 1 segundo
+        if (fpsTime >= 1.0f) {
+            // Calcular el FPS
+            fps = fpsCounter;
+
+            // Reiniciar el contador de FPS y el temporizador
+            fpsCounter = 0;
+            fpsTime = 0;
+        }
+
         // clear the screen with a dark blue color. The
         // arguments to clear are the red, green
         // blue and alpha component in the range [0,1]
@@ -83,7 +103,13 @@ public class GameScreen implements Screen {
         // tell the SpriteBatch to render in the
         // coordinate system specified by the camera.
         game.batch.setProjectionMatrix(camera.combined);
-
+        // Renderiza el fondo
+        game.batch.begin();
+        game.batch.draw(backgroundTexture, 0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+        game.batch.end();
+        game.batch.begin();
+        game.font.draw(game.batch, "FPS: " + fps, 10, Gdx.graphics.getHeight() - 10);
+        game.batch.end();
         // begin a new batch and draw the bucket and
         // all drops
         game.batch.begin();
@@ -106,6 +132,7 @@ public class GameScreen implements Screen {
         if (Gdx.input.isKeyPressed(Keys.RIGHT))
             bucket.x += 200 * Gdx.graphics.getDeltaTime();
 
+
         // make sure the bucket stays within the screen bounds
         if (bucket.x < 0)
             bucket.x = 0;
@@ -123,15 +150,26 @@ public class GameScreen implements Screen {
         while (iter.hasNext()) {
             Rectangle raindrop = iter.next();
             raindrop.y -= 200 * Gdx.graphics.getDeltaTime();
-            if (raindrop.y + 64 < 0)
+            if (raindrop.y + 64 < 0) {
                 iter.remove();
+                Gameover.play();
+                // Clear the screen when a drop falls without being caught by the bucket
+                game.setScreen(new GameOverScreen(game));
+            }
             if (raindrop.overlaps(bucket)) {
-                dropsGathered++;
-                dropSound.play();
+                // Verifica si la parte superior de la gota está dentro del área del cubo
+                if (raindrop.y + raindrop.height > bucket.y + bucket.height * 1.5f) {
+                    dropsGathered++;
+                    dropSound.play();
+                } else {
+                    Gameover.play();
+                    game.setScreen(new GameOverScreen(game));
+                }
                 iter.remove();
             }
         }
     }
+
 
     @Override
     public void resize(int width, int height) {
@@ -162,6 +200,7 @@ public class GameScreen implements Screen {
         bucketImage.dispose();
         dropSound.dispose();
         rainMusic.dispose();
+        backgroundTexture.dispose();
     }
 
 }
